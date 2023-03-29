@@ -1,0 +1,10 @@
+[package]
+name = "safire"
+version = "0.1.0"
+edition = "2021"
+path = "src/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nom = "7.0"
