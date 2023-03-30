@@ -4,6 +4,7 @@ use nom::{
     combinator::recognize,
     IResult,
     sequence::tuple,
+    branch::alt,
 };
 
 #[derive(Debug, PartialEq)]
@@ -92,6 +93,19 @@ fn tokenize_operator(input: &str) -> IResult<&str, Token> {
     Ok((remaining_input, token))
 }
 
+fn tokenize_token(input: &str) -> IResult<&str, Token> {
+    alt((
+        tokenize_number,
+        tokenize_def_keyword,
+        tokenize_identifier,
+        tokenize_operator,
+        tokenize_comma,
+        tokenize_open_parenthesis,
+        tokenize_close_parenthesis,
+        tokenize_open_brace,
+        tokenize_close_brace,
+    ))(input)
+}
 
 pub fn tokenize(input: &str) -> IResult<&str, Vec<Token>> {
     let mut remaining_input = input;
@@ -101,20 +115,9 @@ pub fn tokenize(input: &str) -> IResult<&str, Vec<Token>> {
         let (new_remaining_input, _) = multispace0(remaining_input)?;
         remaining_input = new_remaining_input;
 
-        if let Ok((new_remaining_input, token)) = nom::branch::alt((
-            tokenize_number,
-            tokenize_def_keyword,
-            tokenize_identifier,
-            tokenize_operator,
-            tokenize_comma,
-            tokenize_open_parenthesis,
-            tokenize_close_parenthesis,
-            tokenize_open_brace,
-            tokenize_close_brace,
-        ))(remaining_input)
-        {
+        if let Ok((new_remaining_input, token)) = tokenize_token(remaining_input) {
             tokens.push(token);
-            remaining_input = new_remaining_input; // Add this line
+            remaining_input = new_remaining_input;
         } else {
             return Err(nom::Err::Error(nom::error::Error::new(remaining_input, nom::error::ErrorKind::Tag)));
         }
@@ -122,7 +125,6 @@ pub fn tokenize(input: &str) -> IResult<&str, Vec<Token>> {
 
     Ok((remaining_input, tokens))
 }
-
 
 
 #[allow(dead_code)]
