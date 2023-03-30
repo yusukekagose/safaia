@@ -2,7 +2,10 @@
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Literal(LiteralValue),
-    BinaryOp(Box<Expr>, BinaryOperator, Box<Expr>),
+    Variable(String), // New variant for variables
+    Binary(Box<Expr>, BinaryOperator, Box<Expr>), // BinaryOpをBinaryに変更
+    FunctionDefinition(String, Vec<String>, Box<Expr>),
+    FunctionCall(String, Vec<Expr>),
 }
 
 #[derive(Debug, PartialEq)]

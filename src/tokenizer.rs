@@ -1,7 +1,9 @@
 use nom::{
     bytes::complete::{tag},
-    character::complete::{alpha1, alphanumeric1,digit1, multispace0, multispace1},
+    character::complete::{alpha1, alphanumeric0, digit1, multispace0},
+    combinator::recognize,
     IResult,
+    sequence::tuple,
 };
 
 #[derive(Debug, PartialEq)]
@@ -17,10 +19,8 @@ pub enum Token {
     OpenBrace,
     CloseBrace,
     Comma,
-    FunctionName(String),
+    DefKeyword,
 }
-
-
 
 fn tokenize_open_brace(input: &str) -> IResult<&str, Token> {
     let (remaining_input, _) = tag("{")(input)?;
@@ -32,6 +32,16 @@ fn tokenize_close_brace(input: &str) -> IResult<&str, Token> {
     Ok((remaining_input, Token::CloseBrace))
 }
 
+fn tokenize_open_parenthesis(input: &str) -> IResult<&str, Token> {
+    let (remaining_input, _) = tag("(")(input)?;
+    Ok((remaining_input, Token::OpenParenthesis))
+}
+
+fn tokenize_close_parenthesis(input: &str) -> IResult<&str, Token> {
+    let (remaining_input, _) = tag(")")(input)?;
+    Ok((remaining_input, Token::CloseParenthesis))
+}
+
 
 fn tokenize_number(input: &str) -> IResult<&str, Token> {
     let (remaining_input, number) = digit1(input)?;
@@ -40,17 +50,15 @@ fn tokenize_number(input: &str) -> IResult<&str, Token> {
 
 
 fn tokenize_identifier(input: &str) -> IResult<&str, Token> {
-    let (remaining_input, identifier) = alpha1(input)?;
+    let (remaining_input, identifier) = recognize(tuple((alpha1, alphanumeric0)))(input)?;
 
-    if identifier == "def" {
-        let (remaining_input, _) = multispace1(remaining_input)?;
-        let (remaining_input, function_name) = alphanumeric1(remaining_input)?;
-        Ok((remaining_input, Token::FunctionName(function_name.to_string())))
-    } else {
-        Ok((remaining_input, Token::Identifier(identifier.to_string())))
-    }
+    let token = match identifier {
+        "def" => Token::DefKeyword,
+        _ => Token::Identifier(identifier.to_string()),
+    };
+
+    Ok((remaining_input, token))
 }
-
 
 
 fn tokenize_comma(input: &str) -> IResult<&str, Token> {
@@ -58,15 +66,19 @@ fn tokenize_comma(input: &str) -> IResult<&str, Token> {
     Ok((remaining_input, Token::Comma))
 }
 
+fn tokenize_def_keyword(input: &str) -> IResult<&str, Token> {
+    let (remaining_input, _) = tag("def")(input)?;
+    Ok((remaining_input, Token::DefKeyword))
+}
+
+
 
 fn tokenize_operator(input: &str) -> IResult<&str, Token> {
     let (remaining_input, op) = nom::branch::alt((
         tag("+"),
         tag("-"),
         tag("*"),
-        tag("/"),
-        tag("("),
-        tag(")")
+        tag("/")
     ))(input)?;
 
     let token = match op {
@@ -74,47 +86,44 @@ fn tokenize_operator(input: &str) -> IResult<&str, Token> {
         "-" => Token::Minus,
         "*" => Token::Multiply,
         "/" => Token::Divide,
-        "(" => Token::OpenParenthesis,
-        ")" => Token::CloseParenthesis,
         _ => unreachable!(),
     };
 
     Ok((remaining_input, token))
 }
 
+
 pub fn tokenize(input: &str) -> IResult<&str, Vec<Token>> {
+    let mut remaining_input = input;
     let mut tokens = Vec::new();
 
-    let mut current_input = input;
+    while !remaining_input.trim().is_empty() {
+        let (new_remaining_input, _) = multispace0(remaining_input)?;
+        remaining_input = new_remaining_input;
 
-    while let Ok((remaining_input, _)) = multispace0::<_, nom::error::Error<&str>>(current_input) {
-        if remaining_input.is_empty() {
-            break;
-        }
-
-        if let Ok((remaining_input, token)) = nom::branch::alt((
+        if let Ok((new_remaining_input, token)) = nom::branch::alt((
             tokenize_number,
+            tokenize_def_keyword,
             tokenize_identifier,
             tokenize_operator,
             tokenize_comma,
+            tokenize_open_parenthesis,
+            tokenize_close_parenthesis,
             tokenize_open_brace,
             tokenize_close_brace,
-          
         ))(remaining_input)
         {
             tokens.push(token);
-            current_input = remaining_input;
+            remaining_input = new_remaining_input; // Add this line
         } else {
-            // トークナイザーが失敗した場合、エラー処理を行う
-            return Err(nom::Err::Error(nom::error::Error::new(
-                remaining_input,
-                nom::error::ErrorKind::Tag,
-            )));
+            return Err(nom::Err::Error(nom::error::Error::new(remaining_input, nom::error::ErrorKind::Tag)));
         }
     }
 
-    Ok((current_input, tokens))
+    Ok((remaining_input, tokens))
 }
+
+
 
 #[allow(dead_code)]
 fn main() {
